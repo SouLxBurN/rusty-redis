@@ -1,6 +1,6 @@
 use rusty_redis::server;
 
 fn main() {
-    server::hello_server();
+    server::start_server();
 }
 
