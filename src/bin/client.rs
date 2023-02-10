@@ -1,5 +1,6 @@
+use anyhow::Error;
 use rusty_redis::client;
 
-fn main() {
-    client::connect();
+fn main() -> Result<(), Error>{
+    client::connect("localhost:8080")
 }
