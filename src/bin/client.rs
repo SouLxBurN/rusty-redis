@@ -1,6 +1,7 @@
 use anyhow::Error;
 use rusty_redis::client;
 
-fn main() -> Result<(), Error>{
-    client::connect("localhost:8080")
+#[tokio::main]
+async fn main() -> Result<(), Error>{
+    client::connect("localhost:8080").await
 }

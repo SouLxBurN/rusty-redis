@@ -1,30 +1,34 @@
-use std::{net::TcpListener, str};
-use crate::{BUF_MAX, RedisStreamable};
+use std::str;
+use tokio::net::TcpListener;
+use crate::{BUF_MAX, RedisConnection};
 
-pub fn start_server() {
-    if let Ok(listener) = TcpListener::bind("0.0.0.0:8080") {
-        listen(listener);
+pub async fn start_server() {
+    if let Ok(listener) = TcpListener::bind("0.0.0.0:8080").await {
+        listen(listener).await;
     }
 }
 
-fn listen(listener: TcpListener) {
+async fn listen(listener: TcpListener) {
     loop {
-        match listener.accept() {
-            Ok((mut stream, _addr)) => {
+        match listener.accept().await {
+            Ok((stream, _addr)) => {
                 println!("Receiving Incoming Transmission");
-                loop { // Maintain Connection
-                    let mut full_buf = [0u8; BUF_MAX];
-                    if let Ok(n) = stream.read_message(&mut full_buf) {
-                        println!("{}", str::from_utf8(&full_buf[0..n]).unwrap());
-                        if let Err(e) = stream.write_message("Hi Client! I'm Dad!".as_bytes()) {
-                            eprintln!("Failed to write message {}", e);
+                let mut conn = RedisConnection::new(stream);
+                tokio::spawn(async move {
+                    let mut read_buf = [0u8; BUF_MAX];
+                    loop { // Maintain Connection
+                        if let Ok(n) = conn.read_message(&mut read_buf).await {
+                            println!("{}", str::from_utf8(&read_buf[0..n]).unwrap());
+                            if let Err(e) = conn.write_message("Hi Client! I'm Dad!".as_bytes()).await {
+                                eprintln!("Failed to write message {}", e);
+                                break;
+                            }
+                        } else {
+                            println!("read_full ended");
                             break;
                         }
-                    } else {
-                        println!("read_full ended");
-                        break;
                     }
-                }
+                });
             },
             Err(e) => panic!("Failed to accept connection: {}", e),
         }
