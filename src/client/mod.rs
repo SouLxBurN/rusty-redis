@@ -1,22 +1,9 @@
-use std::str;
-use anyhow::Error;
+use std::{str, io};
+use tokio::net::TcpStream;
 
-use crate::{BUF_MAX, RedisConnection};
+use crate::RedisConnection;
 
-pub async fn connect(url: &str) -> Result<(), Error> {
-    let connection = RedisConnection::connect(url).await?;
-    do_something(connection).await?;
-    Ok(())
+pub async fn connect(url: &str) -> Result<RedisConnection<TcpStream>, io::Error> {
+    RedisConnection::connect(url).await
 }
 
-async fn do_something(mut stream: RedisConnection) -> Result<(), Error> {
-    println!("Connection Established");
-    stream.write_message("Hello! I'm Client.".as_bytes()).await?;
-
-    let mut read_buf = [0u8; BUF_MAX];
-    if let Ok(n) = stream.read_message(&mut read_buf).await {
-        println!("{}", str::from_utf8(&read_buf[0..n]).unwrap());
-    }
-
-    Ok(())
-}
