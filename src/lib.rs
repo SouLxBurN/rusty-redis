@@ -6,6 +6,8 @@ use tokio::net::TcpStream;
 pub mod client;
 pub mod server;
 
+pub const BUF_MAX: usize = 128;
+
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub enum Command {
     GET(String),
@@ -13,7 +15,37 @@ pub enum Command {
     DELETE(String)
 }
 
-pub const BUF_MAX: usize = 128;
+impl Command {
+    pub fn encode(&self) -> Vec<u8> {
+        let mut command: Vec<u8> = vec![];
+        match self {
+            Command::GET(key) => {
+                command.extend_from_slice(&2u32.to_le_bytes());
+                command.extend_from_slice(&3u32.to_le_bytes());
+                command.extend_from_slice(b"get");
+                command.extend_from_slice(&(key.len() as u32).to_le_bytes());
+                command.extend_from_slice(key.as_bytes());
+            },
+            Command::SET(key, value) => {
+                command.extend_from_slice(&3u32.to_le_bytes());
+                command.extend_from_slice(&3u32.to_le_bytes());
+                command.extend_from_slice(b"set");
+                command.extend_from_slice(&(key.len() as u32).to_le_bytes());
+                command.extend_from_slice(key.as_bytes());
+                command.extend_from_slice(&(value.len() as u32).to_le_bytes());
+                command.extend_from_slice(&value);
+            },
+            Command::DELETE(key) => {
+                command.extend_from_slice(&2u32.to_le_bytes());
+                command.extend_from_slice(&3u32.to_le_bytes());
+                command.extend_from_slice(b"del");
+                command.extend_from_slice(&(key.len() as u32).to_le_bytes());
+                command.extend_from_slice(key.as_bytes());
+            },
+        }
+    command
+    }
+}
 
 pub struct RedisConnection<T>
 where
@@ -75,7 +107,7 @@ where
     }
 
     pub async fn write_command(&mut self, cmd: Command) -> io::Result<()> {
-        self.stream.write_all(create_command(cmd).as_slice()).await?;
+        self.stream.write_all(cmd.encode().as_slice()).await?;
         Ok(())
     }
 
@@ -85,36 +117,6 @@ where
         self.stream.write_all(buffer).await?;
         Ok(())
     }
-}
-
-pub fn create_command(cmd: Command) -> Vec<u8> {
-    let mut command: Vec<u8> = vec![];
-    match cmd {
-        Command::GET(key) => {
-            command.extend_from_slice(&2u32.to_le_bytes());
-            command.extend_from_slice(&3u32.to_le_bytes());
-            command.extend_from_slice(b"get");
-            command.extend_from_slice(&(key.len() as u32).to_le_bytes());
-            command.extend_from_slice(key.as_bytes());
-        },
-        Command::SET(key, value) => {
-            command.extend_from_slice(&3u32.to_le_bytes());
-            command.extend_from_slice(&3u32.to_le_bytes());
-            command.extend_from_slice(b"set");
-            command.extend_from_slice(&(key.len() as u32).to_le_bytes());
-            command.extend_from_slice(key.as_bytes());
-            command.extend_from_slice(&(value.len() as u32).to_le_bytes());
-            command.extend_from_slice(&value);
-        },
-        Command::DELETE(key) => {
-            command.extend_from_slice(&2u32.to_le_bytes());
-            command.extend_from_slice(&3u32.to_le_bytes());
-            command.extend_from_slice(b"del");
-            command.extend_from_slice(&(key.len() as u32).to_le_bytes());
-            command.extend_from_slice(key.as_bytes());
-        },
-    }
-    command
 }
 
 // TODO: Clean up the unwraps, and handle bad command data gracefully.
@@ -170,7 +172,7 @@ mod tests {
                 b"1234".to_vec(),
                 b"Hello Stream!".to_vec()
             ]);
-        handle.read(create_command(Command::SET("1234".to_string(), b"Hello Stream!".to_vec())).as_slice());
+        handle.read(Command::SET("1234".to_string(), b"Hello Stream!".to_vec()).encode().as_slice());
 
         let mut conn = RedisConnection::new(mock);
         let actual = conn.read_command().await.expect("Failed to read commands");
