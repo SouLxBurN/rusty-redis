@@ -74,8 +74,7 @@ where
         }
     }
 
-    // TODO: This should just accept a Command enum, and encode it.
-    pub async fn write_command(&mut self, cmd: VecDeque<Vec<u8>>) -> io::Result<()> {
+    pub async fn write_command(&mut self, cmd: Command) -> io::Result<()> {
         self.stream.write_all(create_command(cmd).as_slice()).await?;
         Ok(())
     }
@@ -88,14 +87,32 @@ where
     }
 }
 
-// TODO: Accept Command enum?
-pub fn create_command(cmd: VecDeque<Vec<u8>>) -> Vec<u8> {
+pub fn create_command(cmd: Command) -> Vec<u8> {
     let mut command: Vec<u8> = vec![];
-    command.extend_from_slice(&(cmd.len() as u32).to_le_bytes());
-    for i in 0..cmd.len() {
-        let s = &cmd[i];
-        command.extend_from_slice(&(s.len() as u32).to_le_bytes());
-        command.extend_from_slice(s);
+    match cmd {
+        Command::GET(key) => {
+            command.extend_from_slice(&2u32.to_le_bytes());
+            command.extend_from_slice(&3u32.to_le_bytes());
+            command.extend_from_slice(b"get");
+            command.extend_from_slice(&(key.len() as u32).to_le_bytes());
+            command.extend_from_slice(key.as_bytes());
+        },
+        Command::SET(key, value) => {
+            command.extend_from_slice(&3u32.to_le_bytes());
+            command.extend_from_slice(&3u32.to_le_bytes());
+            command.extend_from_slice(b"set");
+            command.extend_from_slice(&(key.len() as u32).to_le_bytes());
+            command.extend_from_slice(key.as_bytes());
+            command.extend_from_slice(&(value.len() as u32).to_le_bytes());
+            command.extend_from_slice(&value);
+        },
+        Command::DELETE(key) => {
+            command.extend_from_slice(&2u32.to_le_bytes());
+            command.extend_from_slice(&3u32.to_le_bytes());
+            command.extend_from_slice(b"del");
+            command.extend_from_slice(&(key.len() as u32).to_le_bytes());
+            command.extend_from_slice(key.as_bytes());
+        },
     }
     command
 }
@@ -149,11 +166,11 @@ mod tests {
 
         let expected = VecDeque::from(
             [
-                b"Hello".to_vec(),
-                b"2023".to_vec(),
-                b"Stream".to_vec()
+                b"set".to_vec(),
+                b"1234".to_vec(),
+                b"Hello Stream!".to_vec()
             ]);
-        handle.read(create_command(expected.clone()).as_slice());
+        handle.read(create_command(Command::SET("1234".to_string(), b"Hello Stream!".to_vec())).as_slice());
 
         let mut conn = RedisConnection::new(mock);
         let actual = conn.read_command().await.expect("Failed to read commands");
