@@ -1,9 +1,17 @@
+use std::collections::VecDeque;
 use std::str;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt, Error, ErrorKind};
 use tokio::net::TcpStream;
 
 pub mod client;
 pub mod server;
+
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
+pub enum Command {
+    GET(String),
+    SET(String, Vec<u8>),
+    DELETE(String)
+}
 
 pub const BUF_MAX: usize = 128;
 
@@ -29,7 +37,7 @@ where
         RedisConnection { stream }
     }
 
-    async fn read_command(&mut self) -> io::Result<Vec<String>> {
+    async fn read_command(&mut self) -> io::Result<VecDeque<Vec<u8>>> {
         let mut buffer = [0u8; BUF_MAX];
         let b = self.stream.read(&mut buffer).await?;
         if b == 0 {
@@ -39,12 +47,12 @@ where
         let len_buf: &[u8; 4] = &buffer[0..4].try_into().unwrap();
         let cmd_len = u32::from_le_bytes(*len_buf) as usize;
 
-        let mut strs = vec![];
+        let mut strs = VecDeque::new();
         let mut remaining = &buffer[4..];
         for _ in 0..cmd_len {
             let str_len = u32::from_le_bytes(remaining[0..4].try_into().unwrap()) as usize;
-            let st = String::from_utf8(remaining[4..str_len + 4].to_vec()).unwrap();
-            strs.push(st);
+            let st = remaining[4..str_len + 4].to_vec();
+            strs.push_back(st);
             remaining = &remaining[str_len + 4..]
         }
         assert_eq!(cmd_len, strs.len());
@@ -66,7 +74,8 @@ where
         }
     }
 
-    pub async fn write_command(&mut self, cmd: Vec<&str>) -> io::Result<()> {
+    // TODO: This should just accept a Command enum, and encode it.
+    pub async fn write_command(&mut self, cmd: VecDeque<Vec<u8>>) -> io::Result<()> {
         self.stream.write_all(create_command(cmd).as_slice()).await?;
         Ok(())
     }
@@ -79,15 +88,31 @@ where
     }
 }
 
-pub fn create_command(cmd: Vec<&str>) -> Vec<u8> {
+// TODO: Accept Command enum?
+pub fn create_command(cmd: VecDeque<Vec<u8>>) -> Vec<u8> {
     let mut command: Vec<u8> = vec![];
-    command.append(&mut (cmd.len() as u32).to_le_bytes().to_vec());
+    command.extend_from_slice(&(cmd.len() as u32).to_le_bytes());
     for i in 0..cmd.len() {
         let s = &cmd[i];
-        command.append(&mut (s.as_bytes().len() as u32).to_le_bytes().to_vec());
-        command.append(&mut s.as_bytes().to_vec());
+        command.extend_from_slice(&(s.len() as u32).to_le_bytes());
+        command.extend_from_slice(s);
     }
     command
+}
+
+// TODO: Clean up the unwraps, and handle bad command data gracefully.
+pub fn parse_command(mut cmd_str: VecDeque<Vec<u8>>) -> Result<Command, anyhow::Error> {
+    let cmd = cmd_str.pop_front();
+    if let Some(cmd) = cmd {
+        match String::from_utf8(cmd.to_vec())?.as_str() {
+            "get" => Ok(Command::GET(String::from_utf8(cmd_str.pop_front().unwrap())?.to_string())),
+            "del" => Ok(Command::DELETE(String::from_utf8(cmd_str.pop_front().unwrap())?.to_string())),
+            "set" => Ok(Command::SET(String::from_utf8(cmd_str.pop_front().unwrap())?.to_string(), cmd_str.pop_front().unwrap())),
+            _s => Err(Error::new(ErrorKind::Unsupported, format!("Unsupported Command: {}", _s)).into()),
+        }
+    } else {
+        Err(Error::new(ErrorKind::UnexpectedEof, "Failed to parse command").into())
+    }
 }
 
 #[cfg(test)]
@@ -122,7 +147,12 @@ mod tests {
         let mut builder = Builder::new();
         let (mock, mut handle) = builder.build_with_handle();
 
-        let expected = vec!["Hello", "2023", "Stream"];
+        let expected = VecDeque::from(
+            [
+                "Hello".as_bytes().to_vec(),
+                "2023".as_bytes().to_vec(),
+                "Stream".as_bytes().to_vec()
+            ]);
         handle.read(create_command(expected.clone()).as_slice());
 
         let mut conn = RedisConnection::new(mock);
