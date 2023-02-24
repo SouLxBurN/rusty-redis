@@ -10,9 +10,9 @@ async fn main() {
         let _ = conn.write_command(
             VecDeque::from(
                 [
-                    "set".as_bytes().to_vec(),
-                    "1234".as_bytes().to_vec(),
-                    "{\"hello\":\"stream!\"}".as_bytes().to_vec()
+                    b"set".to_vec(),
+                    b"1234".to_vec(),
+                    b"{\"hello\":\"stream!\"}".to_vec()
                 ]
             )
         ).await;
@@ -21,8 +21,8 @@ async fn main() {
         let _ = conn.write_command(
             VecDeque::from(
                 [
-                    "get".as_bytes().to_vec(),
-                    "1234".as_bytes().to_vec()
+                    b"get".to_vec(),
+                    b"1234".to_vec()
                 ]
             )
         ).await;
@@ -31,8 +31,18 @@ async fn main() {
         let _ = conn.write_command(
             VecDeque::from(
                 [
-                    "del".as_bytes().to_vec(),
-                    "1234".as_bytes().to_vec()
+                    b"del".to_vec(),
+                    b"1234".to_vec()
+                ]
+            )
+        ).await;
+        wait_and_read_response(&mut conn).await;
+
+        let _ = conn.write_command(
+            VecDeque::from(
+                [
+                    b"bad".to_vec(),
+                    b"command".to_vec()
                 ]
             )
         ).await;

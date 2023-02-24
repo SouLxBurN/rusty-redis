@@ -108,7 +108,7 @@ pub fn parse_command(mut cmd_str: VecDeque<Vec<u8>>) -> Result<Command, anyhow::
             "get" => Ok(Command::GET(String::from_utf8(cmd_str.pop_front().unwrap())?.to_string())),
             "del" => Ok(Command::DELETE(String::from_utf8(cmd_str.pop_front().unwrap())?.to_string())),
             "set" => Ok(Command::SET(String::from_utf8(cmd_str.pop_front().unwrap())?.to_string(), cmd_str.pop_front().unwrap())),
-            _s => Err(Error::new(ErrorKind::Unsupported, format!("Unsupported Command: {}", _s)).into()),
+            _s => Err(Error::new(ErrorKind::Unsupported, format!("unsupported command: {}", _s)).into()),
         }
     } else {
         Err(Error::new(ErrorKind::UnexpectedEof, "Failed to parse command").into())
@@ -149,9 +149,9 @@ mod tests {
 
         let expected = VecDeque::from(
             [
-                "Hello".as_bytes().to_vec(),
-                "2023".as_bytes().to_vec(),
-                "Stream".as_bytes().to_vec()
+                b"Hello".to_vec(),
+                b"2023".to_vec(),
+                b"Stream".to_vec()
             ]);
         handle.read(create_command(expected.clone()).as_slice());
 

@@ -15,19 +15,20 @@ async fn listen(listener: TcpListener) {
         tokio::spawn(async move {
             loop {
                 if let Ok(cmd) = conn.read_command().await {
-                    if let Ok(the_cmd) = parse_command(cmd) {
-                        match the_cmd {
-                            crate::Command::GET(key) => println!("GET {key}"),
-                            crate::Command::SET(key, value) => println!("SET {key}: {}", String::from_utf8(value.to_vec()).unwrap()),
-                            crate::Command::DELETE(key) => println!("DEL {key}"),
-                        }
+                    match parse_command(cmd) {
+                        Ok(the_cmd) => {
+                            match the_cmd {
+                                crate::Command::GET(key) => println!("GET {key}"),
+                                crate::Command::SET(key, value) => println!("SET {key}: {}", String::from_utf8(value.to_vec()).unwrap()),
+                                crate::Command::DELETE(key) => println!("DEL {key}"),
+                            }
 
-                        if let Err(e) = conn.write_message("Hi Client! I'm Dad!".as_bytes()).await {
-                            eprintln!("Failed to write message {}", e);
-                            break;
-                        }
-                    } else {
-                        println!("invalid command received");
+                            if let Err(e) = conn.write_message("Hi Client! I'm Dad!".as_bytes()).await {
+                                eprintln!("Failed to write message {}", e);
+                                break;
+                            }
+                        },
+                        Err(e) => println!("invalid command received: {}", e),
                     }
                 } else {
                     println!("connection ended");
