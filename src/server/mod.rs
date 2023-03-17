@@ -1,6 +1,8 @@
 use tokio::net::TcpListener;
 use crate::{RedisConnection, parse_command};
 
+mod table;
+
 pub async fn start_server() {
     if let Ok(listener) = TcpListener::bind("0.0.0.0:8080").await {
         listen(listener).await;
