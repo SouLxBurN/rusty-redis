@@ -8,7 +8,7 @@ struct HNode {
 }
 
 #[derive(Clone, Debug)]
-struct HTable {
+pub struct HTable {
     table: Vec<Vec<Arc<HNode>>>,
     size: usize,
     mask: usize,
@@ -16,17 +16,16 @@ struct HTable {
 
 impl HTable {
     /// size must be a power of 2
-    fn new(size: usize) -> Self {
+    pub fn new(size: usize) -> Self {
         assert!(size.is_power_of_two());
         Self {
-            // table: vec![Arc::new(None); size],
             table: vec![vec![]; size],
             size: 0,
             mask: size - 1,
         }
     }
 
-    async fn insert(&mut self, key: &str, value: Vec<u8>) {
+    pub fn insert(&mut self, key: &str, value: Vec<u8>) {
         let h_key = hash_key(key) & self.mask;
 
         if self.table[h_key].is_empty() {
@@ -47,7 +46,7 @@ impl HTable {
         }
     }
 
-    fn get(&self, key: &str) -> Option<Arc<Vec<u8>>> {
+    pub fn get(&self, key: &str) -> Option<Arc<Vec<u8>>> {
         let h_key = hash_key(key) & self.mask;
         let node = find_matching_node(key, &self.table[h_key]);
 
@@ -59,7 +58,7 @@ impl HTable {
         }
     }
 
-    fn delete(&mut self, key: &str) {
+    pub fn delete(&mut self, key: &str) {
         let h_key = hash_key(key) & self.mask;
         let bucket = &mut self.table[h_key];
         for i in 0..bucket.len() {
@@ -132,7 +131,7 @@ mod test {
         let mut table = HTable::new(2);
         assert!(table.get(key).is_none());
 
-        table.insert(key, value.into_bytes()).await;
+        table.insert(key, value.into_bytes());
         assert_eq!(String::from("value").into_bytes(), *table.get(key).unwrap());
 
         table.delete(key);
@@ -146,8 +145,8 @@ mod test {
 
         let mut table = HTable::new(2);
 
-        table.insert(key, String::from("value1").into_bytes()).await;
-        table.insert(yek, String::from("value2").into_bytes()).await;
+        table.insert(key, String::from("value1").into_bytes());
+        table.insert(yek, String::from("value2").into_bytes());
 
         assert_eq!(String::from("value1").into_bytes(), *table.get(key).unwrap());
         assert_eq!(String::from("value2").into_bytes(), *table.get(yek).unwrap());
@@ -160,8 +159,8 @@ mod test {
 
         let mut table = HTable::new(2);
 
-        table.insert(key, String::from("value1").into_bytes()).await;
-        table.insert(yek, String::from("value2").into_bytes()).await;
+        table.insert(key, String::from("value1").into_bytes());
+        table.insert(yek, String::from("value2").into_bytes());
 
         assert_eq!(String::from("value1").into_bytes(), *table.get(key).unwrap());
         assert_eq!(String::from("value2").into_bytes(), *table.get(yek).unwrap());

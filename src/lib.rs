@@ -93,12 +93,10 @@ where
     }
 
     pub async fn read_response(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
-        let mut len_buf = [0u8; 4];
-        self.stream.read_exact(&mut len_buf).await?;
-        let msg_len = u32::from_le_bytes(len_buf) as usize;
+        let msg_len = self.stream.read_u32_le().await? as usize;
         assert!(msg_len < BUF_MAX);
 
-        let b = self.stream.read(buffer).await?;
+        let b = self.stream.read_exact(&mut buffer[..msg_len]).await?;
         if b < msg_len {
             Err(Error::from(ErrorKind::UnexpectedEof))
         } else {
