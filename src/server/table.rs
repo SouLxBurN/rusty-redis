@@ -10,6 +10,7 @@ struct HNode {
 #[derive(Clone, Debug)]
 pub struct HTable {
     table: Vec<Vec<Arc<HNode>>>,
+    keys: Vec<String>,
     size: usize,
     mask: usize,
 }
@@ -21,6 +22,7 @@ impl HTable {
         Self {
             table: vec![vec![]; size],
             size: 0,
+            keys: vec![],
             mask: size - 1,
         }
     }
@@ -44,6 +46,7 @@ impl HTable {
             };
             self.table[h_key].push(Arc::new(new_node));
         }
+        self.keys.push(key.to_string());
     }
 
     pub fn get(&self, key: &str) -> Option<Arc<Vec<u8>>> {
@@ -68,6 +71,13 @@ impl HTable {
                 }
             }
         }
+        if let Some(to_remove) = self.keys.iter().enumerate().find(|k| *k.1 == key ) {
+            self.keys.swap_remove(to_remove.0);
+        }
+    }
+
+    pub fn keys(&self) -> &Vec<String> {
+        &self.keys
     }
 }
 
@@ -121,6 +131,24 @@ mod test {
         assert_eq!(String::from("val1").into_bytes(), *find_matching_node("node1", &bucket).as_deref().unwrap().value);
         assert!(find_matching_node("nothing", &bucket).is_none());
         assert!(find_matching_node("anything", &vec![]).is_none());
+    }
+
+    #[tokio::test]
+    async fn test_keys() {
+        let mut table = HTable::new(2);
+        let key1 = String::from("Key1");
+        let key2 = String::from("Key2");
+        let key3 = String::from("Key3");
+        let key4 = String::from("Key4");
+
+        table.insert(&key1, b"Value1".to_vec());
+        table.insert(&key2, b"Value2".to_vec());
+        table.insert(&key3, b"Value3".to_vec());
+        table.insert(&key4, b"Value4".to_vec());
+        assert_eq!(&vec![key1.clone(), key2.clone(), key3.clone(), key4.clone()], table.keys());
+
+        table.delete(&key4);
+        assert_eq!(&vec![key1, key2, key3], table.keys());
     }
 
     #[tokio::test]

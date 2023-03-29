@@ -39,6 +39,7 @@ impl RedisServer {
                             Ok(the_cmd) => {
                                 match the_cmd {
                                     crate::Command::GET(key) => execute_get(&mut conn, cache.clone(), &key).await,
+                                    crate::Command::KEYS() => execute_keys(&mut conn, cache.clone()).await,
                                     crate::Command::SET(key, value) => execute_set(&mut conn, cache.clone(), &key, value).await,
                                     crate::Command::DELETE(key) => execute_delete(&mut conn, cache.clone(), &key).await,
                                 };
@@ -52,6 +53,17 @@ impl RedisServer {
                 }
             });
         }
+    }
+}
+
+async fn execute_keys<T>(conn: &mut RedisConnection<T>, cache: Arc<RwLock<HTable>>)
+    where T: AsyncReadExt + AsyncWriteExt + Unpin
+{
+    println!("KEYS");
+    let cache_read = cache.read().await;
+    let keys = cache_read.keys();
+    if let Err(e) = conn.write_message(keys.as_slice().join(",").as_bytes()).await {
+        eprintln!("Failed to write message {}", e);
     }
 }
 
