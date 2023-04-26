@@ -1,57 +1,17 @@
+use crate::command::Command;
+use crate::response::Response;
 use std::collections::VecDeque;
 use std::str;
+use std::sync::Arc;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt, Error, ErrorKind};
 use tokio::net::TcpStream;
 
 pub mod client;
 pub mod server;
+pub mod response;
+pub mod command;
 
-pub const BUF_MAX: usize = 128;
-
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
-pub enum Command {
-    GET(String),
-    KEYS(),
-    SET(String, Vec<u8>),
-    DELETE(String)
-}
-
-impl Command {
-    pub fn encode(&self) -> Vec<u8> {
-        let mut command: Vec<u8> = vec![];
-        match self {
-            Command::KEYS() => {
-                command.extend_from_slice(&1u32.to_le_bytes());
-                command.extend_from_slice(&4u32.to_le_bytes());
-                command.extend_from_slice(b"keys");
-            },
-            Command::GET(key) => {
-                command.extend_from_slice(&2u32.to_le_bytes());
-                command.extend_from_slice(&3u32.to_le_bytes());
-                command.extend_from_slice(b"get");
-                command.extend_from_slice(&(key.len() as u32).to_le_bytes());
-                command.extend_from_slice(key.as_bytes());
-            },
-            Command::SET(key, value) => {
-                command.extend_from_slice(&3u32.to_le_bytes());
-                command.extend_from_slice(&3u32.to_le_bytes());
-                command.extend_from_slice(b"set");
-                command.extend_from_slice(&(key.len() as u32).to_le_bytes());
-                command.extend_from_slice(key.as_bytes());
-                command.extend_from_slice(&(value.len() as u32).to_le_bytes());
-                command.extend_from_slice(&value);
-            },
-            Command::DELETE(key) => {
-                command.extend_from_slice(&2u32.to_le_bytes());
-                command.extend_from_slice(&3u32.to_le_bytes());
-                command.extend_from_slice(b"del");
-                command.extend_from_slice(&(key.len() as u32).to_le_bytes());
-                command.extend_from_slice(key.as_bytes());
-            },
-        }
-    command
-    }
-}
+pub const BUF_MAX: usize = 256;
 
 pub struct RedisConnection<T>
 where
@@ -98,16 +58,13 @@ where
         Ok(strs)
     }
 
-    pub async fn read_response(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
-        let msg_len = self.stream.read_u32_le().await? as usize;
-        assert!(msg_len < BUF_MAX);
-
-        let b = self.stream.read_exact(&mut buffer[..msg_len]).await?;
-        if b < msg_len {
-            Err(Error::from(ErrorKind::UnexpectedEof))
-        } else {
-            Ok(msg_len)
+    pub async fn read_response(&mut self) -> Result<Response, anyhow::Error> {
+        let mut buffer = [0u8; BUF_MAX];
+        let b = self.stream.read(&mut buffer).await?;
+        if b == 0 {
+            return Err(io::Error::new(ErrorKind::UnexpectedEof, "Stream read 0 bytes").into())
         }
+        Ok(Response::deserialize(&buffer)?)
     }
 
     pub async fn write_command(&mut self, cmd: Command) -> io::Result<()> {
@@ -115,10 +72,15 @@ where
         Ok(())
     }
 
-    async fn write_message(&mut self, buffer: &[u8]) -> io::Result<()> {
+    async fn write_response(&mut self, response: Response) -> io::Result<()> {
+        self.stream.write_all(&response.serialize()).await?;
+        Ok(())
+    }
+
+    async fn write_message(&mut self, buffer: Arc<&[u8]>) -> io::Result<()> {
         let msg_len = buffer.len() as u32;
         self.stream.write_all(&msg_len.to_le_bytes()).await?;
-        self.stream.write_all(buffer).await?;
+        self.stream.write_all(&buffer[0..buffer.len()]).await?;
         Ok(())
     }
 }
@@ -129,7 +91,7 @@ pub fn parse_command(mut cmd_str: VecDeque<Vec<u8>>) -> Result<Command, anyhow::
     if let Some(cmd) = cmd {
         match String::from_utf8(cmd.to_vec())?.as_str() {
             "get" => Ok(Command::GET(String::from_utf8(cmd_str.pop_front().unwrap())?.to_string())),
-            "keys" => Ok(Command::KEYS()),
+            "keys" => Ok(Command::KEYS),
             "del" => Ok(Command::DELETE(String::from_utf8(cmd_str.pop_front().unwrap())?.to_string())),
             "set" => Ok(Command::SET(String::from_utf8(cmd_str.pop_front().unwrap())?.to_string(), cmd_str.pop_front().unwrap())),
             _s => Err(Error::new(ErrorKind::Unsupported, format!("unsupported command: {}", _s)).into()),
@@ -151,19 +113,22 @@ mod tests {
 
         let expected_message = "Hello there!";
         let mut response: Vec<u8> = vec![];
+        response.extend_from_slice(&2u32.to_le_bytes());
         response.append(&mut (expected_message.as_bytes().len() as u32).to_le_bytes().to_vec());
         response.append(&mut expected_message.as_bytes().to_vec());
         handle.read(response.as_slice());
 
         let mut conn = RedisConnection::new(mock);
-        let mut test_buffer = [0u8; 12];
         let n = conn
-            .read_response(&mut test_buffer)
+            .read_response()
             .await
             .expect("Failed to read mock buffer");
 
-        assert_eq!(12, n);
-        assert_eq!(expected_message.as_bytes(), test_buffer);
+        assert!(matches!(n, Response::String(..)));
+        match n {
+            Response::String(s) => assert_eq!(expected_message, s),
+            _ => assert!(false)
+        }
     }
 
     #[tokio::test]

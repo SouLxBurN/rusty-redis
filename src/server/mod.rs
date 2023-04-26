@@ -4,6 +4,7 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
+use crate::response::Response;
 use crate::{RedisConnection, parse_command};
 use table::HTable;
 
@@ -39,7 +40,7 @@ impl RedisServer {
                             Ok(the_cmd) => {
                                 match the_cmd {
                                     crate::Command::GET(key) => execute_get(&mut conn, cache.clone(), &key).await,
-                                    crate::Command::KEYS() => execute_keys(&mut conn, cache.clone()).await,
+                                    crate::Command::KEYS => execute_keys(&mut conn, cache.clone()).await,
                                     crate::Command::SET(key, value) => execute_set(&mut conn, cache.clone(), &key, value).await,
                                     crate::Command::DELETE(key) => execute_delete(&mut conn, cache.clone(), &key).await,
                                 };
@@ -62,7 +63,8 @@ async fn execute_keys<T>(conn: &mut RedisConnection<T>, cache: Arc<RwLock<HTable
     println!("KEYS");
     let cache_read = cache.read().await;
     let keys = cache_read.keys();
-    if let Err(e) = conn.write_message(keys.as_slice().join(",").as_bytes()).await {
+    let response = Response::Array(Arc::new(keys.to_vec()));
+    if let Err(e) = conn.write_response(response).await {
         eprintln!("Failed to write message {}", e);
     }
 }
@@ -73,12 +75,14 @@ async fn execute_get<T>(conn: &mut RedisConnection<T>, cache: Arc<RwLock<HTable>
     println!("GET {key}");
     let cache_read = cache.read().await;
     if let Some(data) = cache_read.get(key) {
-        if let Err(e) = conn.write_message(data.as_slice()).await {
-            eprintln!("Failed to write message {}", e);
+        let response = Response::Data(data.clone());
+        if let Err(e) = conn.write_response(response).await {
+            eprintln!("Failed to write response {}", e);
         }
     } else {
-        if let Err(e) = conn.write_message(b"None").await {
-            eprintln!("Failed to write message {}", e);
+        // return nil, if we had nil in Rust.
+        if let Err(e) = conn.write_response(Response::Empty).await {
+            eprintln!("Failed to write response {}", e);
         }
     }
 }
@@ -89,7 +93,7 @@ async fn execute_set<T>(conn: &mut RedisConnection<T>, cache: Arc<RwLock<HTable>
     println!("SET {key}: {}", String::from_utf8(value.to_vec()).unwrap());
     let mut cache_rw = cache.write().await;
     cache_rw.insert(key, value);
-    if let Err(e) = conn.write_message("Hi Client! I'm Dad!".as_bytes()).await {
+    if let Err(e) = conn.write_response(Response::String(String::from("Hi Client! I'm Dad!"))).await {
         eprintln!("Failed to write message {}", e);
     }
 }
@@ -100,7 +104,7 @@ async fn execute_delete<T>(conn: &mut RedisConnection<T>, cache: Arc<RwLock<HTab
     println!("DEL {key}");
     let mut cache_rw = cache.write().await;
     cache_rw.delete(key);
-    if let Err(e) = conn.write_message("Hi Client! I'm Dad!".as_bytes()).await {
+    if let Err(e) = conn.write_response(Response::String(String::from("Hi Client! I'm Dad!"))).await {
         eprintln!("Failed to write message {}", e);
     }
 }
