@@ -1,4 +1,5 @@
 mod table;
+mod tree;
 use std::sync::Arc;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
