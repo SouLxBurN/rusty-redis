@@ -1,43 +1,42 @@
 use rusty_redis::response::Response;
-use rusty_redis::command::Command;
-use rusty_redis::{client, RedisConnection};
-use tokio::net::TcpStream;
+use rusty_redis::client;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     if let Ok(mut conn) = client::connect("localhost:8080").await {
         println!("Connection Established");
-        let _ = conn.write_command(Command::SET("1234".to_string(), b"{\"hello\":\"stream 1234!\"}".to_vec())).await?;
+
+        let response = conn.set("1234".to_string(), b"{\"hello\":\"stream 1234!\"}".to_vec()).await?;
         println!("SET 1234");
-        wait_and_read_response(&mut conn).await?;
+        print_response(response)?;
 
-        let _ = conn.write_command(Command::GET("1234".to_string())).await?;
+        let response = conn.get("1234".to_string()).await?;
         println!("GET 1234");
-        wait_and_read_response(&mut conn).await?;
+        print_response(response)?;
 
-        let _ = conn.write_command(Command::SET("4444".to_string(), b"{\"hello\":\"stream 4444!\"}".to_vec())).await?;
+        let response = conn.set("4444".to_string(), b"{\"hello\":\"stream 4444!\"}".to_vec()).await?;
         println!("SET 4444");
-        wait_and_read_response(&mut conn).await?;
+        print_response(response)?;
 
-        let _ = conn.write_command(Command::SET("4321".to_string(), b"{\"hello\":\"stream 4321!\"}".to_vec())).await?;
+        let response = conn.set("4321".to_string(), b"{\"hello\":\"stream 4321!\"}".to_vec()).await?;
         println!("SET 4321");
-        wait_and_read_response(&mut conn).await?;
+        print_response(response)?;
 
-        let _ = conn.write_command(Command::KEYS).await?;
+        let response = conn.keys().await?;
         println!("KEYS");
-        wait_and_read_response(&mut conn).await?;
+        print_response(response)?;
 
-        let _ = conn.write_command(Command::DELETE("1234".to_string())).await?;
+        let response = conn.delete("1234".to_string()).await?;
         println!("DEL 1234");
-        wait_and_read_response(&mut conn).await?;
+        print_response(response)?;
 
-        let _ = conn.write_command(Command::GET("1234".to_string())).await?;
+        let response = conn.get("1234".to_string()).await?;
         println!("GET 1234");
-        wait_and_read_response(&mut conn).await?;
+        print_response(response)?;
 
-        let _ = conn.write_command(Command::KEYS).await?;
+        let response = conn.keys().await?;
         println!("KEYS");
-        wait_and_read_response(&mut conn).await?;
+        print_response(response)?;
 
     } else {
         eprintln!("Failed to connect to server");
@@ -45,8 +44,8 @@ async fn main() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-async fn wait_and_read_response(conn: &mut RedisConnection<TcpStream>) -> Result<(), anyhow::Error> {
-    match conn.read_response().await? {
+fn print_response(response: Response) -> Result<(), anyhow::Error> {
+    match response {
         Response::Empty => println!("Empty Response"),
         Response::Error(s) => println!("{s}"),
         Response::String(s) => println!("{s}"),

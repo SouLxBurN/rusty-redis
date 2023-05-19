@@ -9,8 +9,9 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 use tokio::time::sleep;
+use crate::command::Command;
 use crate::response::Response;
-use crate::{RedisConnection, parse_command};
+use crate::RedisConnection;
 
 use self::store::DataStore;
 
@@ -32,7 +33,7 @@ impl RedisServer {
             loop {
                 sleep(Duration::from_millis(1000)).await;
                 let ex_keys = {
-                    let write_store = data_store.jwrite();
+                    let write_store = data_store.write();
                     write_store.await.expire()
                 };
                 if let Some(expired) = ex_keys {
@@ -55,13 +56,13 @@ impl RedisServer {
             tokio::spawn(async move {
                 loop {
                     if let Ok(cmd) = conn.read_command().await {
-                        match parse_command(cmd) {
+                        match Command::parse(cmd) {
                             Ok(the_cmd) => {
                                 match the_cmd {
-                                    crate::Command::GET(key) => execute_get(&mut conn, data_store.clone(), &key).await,
-                                    crate::Command::KEYS => execute_keys(&mut conn, data_store.clone()).await,
-                                    crate::Command::SET(key, value) => execute_set(&mut conn, data_store.clone(), &key, value).await,
-                                    crate::Command::DELETE(key) => execute_delete(&mut conn, data_store.clone(), &key).await,
+                                    Command::GET(key) => execute_get(&mut conn, data_store.clone(), &key).await,
+                                    Command::KEYS => execute_keys(&mut conn, data_store.clone()).await,
+                                    Command::SET(key, value) => execute_set(&mut conn, data_store.clone(), &key, value).await,
+                                    Command::DELETE(key) => execute_delete(&mut conn, data_store.clone(), &key).await,
                                 };
                             },
                             Err(e) => println!("invalid command received: {}", e),
