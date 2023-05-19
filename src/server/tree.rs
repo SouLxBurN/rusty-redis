@@ -13,7 +13,6 @@ impl<T> AVLTree<T> where T: Ord + Display {
     }
 
     fn insert(&mut self, data: T) {
-        println!("Insert {data}");
         if let Some(mut root_node) = self.root.take() {
             root_node.insert(data);
             let balance = root_node.balance_factor();

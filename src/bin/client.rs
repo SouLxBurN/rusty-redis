@@ -11,24 +11,28 @@ async fn main() -> Result<(), anyhow::Error> {
         println!("SET 1234");
         wait_and_read_response(&mut conn).await?;
 
+        let _ = conn.write_command(Command::GET("1234".to_string())).await?;
+        println!("GET 1234");
+        wait_and_read_response(&mut conn).await?;
+
         let _ = conn.write_command(Command::SET("4444".to_string(), b"{\"hello\":\"stream 4444!\"}".to_vec())).await?;
         println!("SET 4444");
         wait_and_read_response(&mut conn).await?;
 
-        let _ = conn.write_command(Command::SET("1111".to_string(), b"{\"hello\":\"stream 1111!\"}".to_vec())).await?;
-        println!("SET 1111");
+        let _ = conn.write_command(Command::SET("4321".to_string(), b"{\"hello\":\"stream 4321!\"}".to_vec())).await?;
+        println!("SET 4321");
         wait_and_read_response(&mut conn).await?;
 
         let _ = conn.write_command(Command::KEYS).await?;
         println!("KEYS");
         wait_and_read_response(&mut conn).await?;
 
-        let _ = conn.write_command(Command::GET("1234".to_string())).await?;
-        println!("GET 1234");
-        wait_and_read_response(&mut conn).await?;
-
         let _ = conn.write_command(Command::DELETE("1234".to_string())).await?;
         println!("DEL 1234");
+        wait_and_read_response(&mut conn).await?;
+
+        let _ = conn.write_command(Command::GET("1234".to_string())).await?;
+        println!("GET 1234");
         wait_and_read_response(&mut conn).await?;
 
         let _ = conn.write_command(Command::KEYS).await?;

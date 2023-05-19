@@ -47,6 +47,7 @@ impl HTable {
             self.table[h_key].push(Arc::new(new_node));
         }
         self.keys.push(key.to_string());
+        self.size += 1;
     }
 
     pub fn get(&self, key: &str) -> Option<Arc<Vec<u8>>> {
@@ -68,6 +69,7 @@ impl HTable {
             if let Some(val) = bucket.get(i) {
                 if val.key == key {
                     bucket.remove(i);
+                    self.size -= 1;
                 }
             }
         }
@@ -78,6 +80,10 @@ impl HTable {
 
     pub fn keys(&self) -> &Vec<String> {
         &self.keys
+    }
+
+    pub fn len(&self) -> usize {
+        self.size
     }
 }
 

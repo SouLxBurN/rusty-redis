@@ -1,27 +1,45 @@
 mod table;
 mod tree;
-use std::sync::Arc;
+mod store;
+mod connection;
 
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
+use tokio::time::sleep;
 use crate::response::Response;
 use crate::{RedisConnection, parse_command};
-use table::HTable;
+
+use self::store::DataStore;
 
 pub struct RedisServer {
     host: String,
     port: u32,
-    cache: Arc<RwLock<HTable>>
+    store: Arc<RwLock<DataStore>>
 }
 
 impl RedisServer {
     pub fn new(host: String, port: u32) -> Self {
-        let cache = Arc::new(RwLock::new(HTable::new(64usize)));
-        RedisServer{host, port, cache}
+        let store = Arc::new(RwLock::new(DataStore::new(64usize)));
+        RedisServer{host, port, store}
     }
 
     pub async fn start_server(&self) {
+        let data_store = self.store.clone();
+        tokio::spawn(async move {
+            loop {
+                sleep(Duration::from_millis(1000)).await;
+                let ex_keys = {
+                    let write_store = data_store.jwrite();
+                    write_store.await.expire()
+                };
+                if let Some(expired) = ex_keys {
+                    println!("Cache Key ({:?}) expired", expired);
+                };
+            }
+        });
         if let Ok(listener) = TcpListener::bind(
             format!("{}:{}", self.host, self.port)).await {
             self.listen(listener).await;
@@ -32,7 +50,7 @@ impl RedisServer {
         loop {
             let (stream, _addr) = listener.accept().await.expect("Failed to accept connection");
             println!("Receiving Incoming Transmission");
-            let cache = self.cache.clone();
+            let data_store = self.store.clone();
             let mut conn = RedisConnection::new(stream);
             tokio::spawn(async move {
                 loop {
@@ -40,10 +58,10 @@ impl RedisServer {
                         match parse_command(cmd) {
                             Ok(the_cmd) => {
                                 match the_cmd {
-                                    crate::Command::GET(key) => execute_get(&mut conn, cache.clone(), &key).await,
-                                    crate::Command::KEYS => execute_keys(&mut conn, cache.clone()).await,
-                                    crate::Command::SET(key, value) => execute_set(&mut conn, cache.clone(), &key, value).await,
-                                    crate::Command::DELETE(key) => execute_delete(&mut conn, cache.clone(), &key).await,
+                                    crate::Command::GET(key) => execute_get(&mut conn, data_store.clone(), &key).await,
+                                    crate::Command::KEYS => execute_keys(&mut conn, data_store.clone()).await,
+                                    crate::Command::SET(key, value) => execute_set(&mut conn, data_store.clone(), &key, value).await,
+                                    crate::Command::DELETE(key) => execute_delete(&mut conn, data_store.clone(), &key).await,
                                 };
                             },
                             Err(e) => println!("invalid command received: {}", e),
@@ -58,24 +76,24 @@ impl RedisServer {
     }
 }
 
-async fn execute_keys<T>(conn: &mut RedisConnection<T>, cache: Arc<RwLock<HTable>>)
+async fn execute_keys<T>(conn: &mut RedisConnection<T>, data_store: Arc<RwLock<DataStore>>)
     where T: AsyncReadExt + AsyncWriteExt + Unpin
 {
     println!("KEYS");
-    let cache_read = cache.read().await;
-    let keys = cache_read.keys();
+    let store_read = data_store.read().await;
+    let keys = store_read.keys();
     let response = Response::Array(Arc::new(keys.to_vec()));
     if let Err(e) = conn.write_response(response).await {
         eprintln!("Failed to write message {}", e);
     }
 }
 
-async fn execute_get<T>(conn: &mut RedisConnection<T>, cache: Arc<RwLock<HTable>>, key: &str)
+async fn execute_get<T>(conn: &mut RedisConnection<T>, data_store: Arc<RwLock<DataStore>>, key: &str)
     where T: AsyncReadExt + AsyncWriteExt + Unpin
 {
     println!("GET {key}");
-    let cache_read = cache.read().await;
-    if let Some(data) = cache_read.get(key) {
+    let store_read = data_store.read().await;
+    if let Some(data) = store_read.get(key) {
         let response = Response::Data(data.clone());
         if let Err(e) = conn.write_response(response).await {
             eprintln!("Failed to write response {}", e);
@@ -88,18 +106,18 @@ async fn execute_get<T>(conn: &mut RedisConnection<T>, cache: Arc<RwLock<HTable>
     }
 }
 
-async fn execute_set<T>(conn: &mut RedisConnection<T>, cache: Arc<RwLock<HTable>>, key: &str, value: Vec<u8>)
+async fn execute_set<T>(conn: &mut RedisConnection<T>, data_store: Arc<RwLock<DataStore>>, key: &str, value: Vec<u8>)
     where T: AsyncReadExt + AsyncWriteExt + Unpin
 {
     println!("SET {key}: {}", String::from_utf8(value.to_vec()).unwrap());
-    let mut cache_rw = cache.write().await;
-    cache_rw.insert(key, value);
+    let mut store_rw = data_store.write().await;
+    store_rw.insert(key, value);
     if let Err(e) = conn.write_response(Response::String(String::from("Hi Client! I'm Dad!"))).await {
         eprintln!("Failed to write message {}", e);
     }
 }
 
-async fn execute_delete<T>(conn: &mut RedisConnection<T>, cache: Arc<RwLock<HTable>>, key: &str)
+async fn execute_delete<T>(conn: &mut RedisConnection<T>, cache: Arc<RwLock<DataStore>>, key: &str)
     where T: AsyncReadExt + AsyncWriteExt + Unpin
 {
     println!("DEL {key}");
