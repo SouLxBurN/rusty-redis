@@ -56,13 +56,15 @@ impl DataStore {
         self.cache.get(key)
     }
 
-    pub fn insert(&mut self, key: &str, value: Vec<u8>) {
-        let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-        let expire = current_time.checked_add(Duration::from_secs(5)).unwrap();
-        let ttl = TTL{expire: expire.as_millis(), id: current_time.as_nanos()};
-        println!("Inserted ({},{})", ttl.expire, ttl.id);
-        self.ttls.insert(ttl.clone(), key.to_string());
-        self.cache_ttls.insert(key.to_string(), ttl);
+    pub fn insert(&mut self, key: &str, value: Vec<u8>, ttl: u64) {
+        if ttl != 0 {
+            let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+            let expire = current_time.checked_add(Duration::from_millis(ttl)).unwrap();
+            let ttl = TTL{expire: expire.as_millis(), id: current_time.as_nanos()};
+            println!("Inserted ({},{})", ttl.expire, ttl.id);
+            self.ttls.insert(ttl.clone(), key.to_string());
+            self.cache_ttls.insert(key.to_string(), ttl);
+        }
         self.cache.insert(key, value);
         println!("Insert: cache_ttls:{}, ttls:{}, cache:{}", self.cache_ttls.len(), self.ttls.len(), self.cache.len());
     }

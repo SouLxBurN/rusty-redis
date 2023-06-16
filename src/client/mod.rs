@@ -34,10 +34,9 @@ where
         self.read_response().await
     }
 
-    // TODO: Add TLL to set command
     /// Store a key->value in the cache.
-    pub async fn set(&mut self, key: String, value: Vec<u8>) -> Result<Response, anyhow::Error> {
-        self.write_command(Command::SET(key, value)).await?;
+    pub async fn set(&mut self, key: String, value: Vec<u8>, ttl: u64) -> Result<Response, anyhow::Error> {
+        self.write_command(Command::SET(key, value, ttl)).await?;
         self.read_response().await
     }
 

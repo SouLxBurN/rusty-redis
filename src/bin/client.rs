@@ -6,20 +6,20 @@ async fn main() -> Result<(), anyhow::Error> {
     if let Ok(mut conn) = client::connect("localhost:8080").await {
         println!("Connection Established");
 
-        let response = conn.set("1234".to_string(), b"{\"hello\":\"stream 1234!\"}".to_vec()).await?;
-        println!("SET 1234");
+        let response = conn.set("1234".to_string(), b"{\"hello\":\"stream 1234!\"}".to_vec(), 10000).await?;
+        println!("SET 1234 10000");
         print_response(response)?;
 
         let response = conn.get("1234".to_string()).await?;
         println!("GET 1234");
         print_response(response)?;
 
-        let response = conn.set("4444".to_string(), b"{\"hello\":\"stream 4444!\"}".to_vec()).await?;
-        println!("SET 4444");
+        let response = conn.set("4444".to_string(), b"{\"hello\":\"stream 4444!\"}".to_vec(), 15000).await?;
+        println!("SET 4444 15000");
         print_response(response)?;
 
-        let response = conn.set("4321".to_string(), b"{\"hello\":\"stream 4321!\"}".to_vec()).await?;
-        println!("SET 4321");
+        let response = conn.set("4321".to_string(), b"{\"hello\":\"stream 4321!\"}".to_vec(), 0).await?;
+        println!("SET 4321 0");
         print_response(response)?;
 
         let response = conn.keys().await?;
@@ -36,6 +36,10 @@ async fn main() -> Result<(), anyhow::Error> {
 
         let response = conn.keys().await?;
         println!("KEYS");
+        print_response(response)?;
+
+        let response = conn.get("4321".to_string()).await?;
+        println!("GET 4321");
         print_response(response)?;
 
     } else {

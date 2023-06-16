@@ -64,9 +64,10 @@ mod tests {
             [
                 b"set".to_vec(),
                 b"1234".to_vec(),
-                b"Hello Stream!".to_vec()
+                b"Hello Stream!".to_vec(),
+                5000u64.to_le_bytes().to_vec()
             ]);
-        handle.read(Command::SET("1234".to_string(), b"Hello Stream!".to_vec()).encode().as_slice());
+        handle.read(Command::SET("1234".to_string(), b"Hello Stream!".to_vec(), 5000u64).encode().as_slice());
 
         let mut conn = RedisConnection::new(mock);
         let actual = conn.read_command().await.expect("Failed to read commands");

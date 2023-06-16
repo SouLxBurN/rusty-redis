@@ -5,7 +5,7 @@ use std::io::{ErrorKind, Error};
 pub enum Command {
     GET(String),
     KEYS,
-    SET(String, Vec<u8>),
+    SET(String, Vec<u8>, u64),
     DELETE(String)
 }
 
@@ -25,14 +25,16 @@ impl Command {
                 command.extend_from_slice(&(key.len() as u32).to_le_bytes());
                 command.extend_from_slice(key.as_bytes());
             },
-            Command::SET(key, value) => {
-                command.extend_from_slice(&3u32.to_le_bytes());
+            Command::SET(key, value, ttl) => {
+                command.extend_from_slice(&4u32.to_le_bytes());
                 command.extend_from_slice(&3u32.to_le_bytes());
                 command.extend_from_slice(b"set");
                 command.extend_from_slice(&(key.len() as u32).to_le_bytes());
                 command.extend_from_slice(key.as_bytes());
                 command.extend_from_slice(&(value.len() as u32).to_le_bytes());
                 command.extend_from_slice(&value);
+                command.extend_from_slice(&8u32.to_le_bytes());
+                command.extend_from_slice(&ttl.to_le_bytes());
             },
             Command::DELETE(key) => {
                 command.extend_from_slice(&2u32.to_le_bytes());
@@ -53,7 +55,10 @@ impl Command {
                 "get" => Ok(Command::GET(String::from_utf8(cmd_str.pop_front().unwrap())?.to_string())),
                 "keys" => Ok(Command::KEYS),
                 "del" => Ok(Command::DELETE(String::from_utf8(cmd_str.pop_front().unwrap())?.to_string())),
-                "set" => Ok(Command::SET(String::from_utf8(cmd_str.pop_front().unwrap())?.to_string(), cmd_str.pop_front().unwrap())),
+                "set" => Ok(Command::SET(
+                    String::from_utf8(cmd_str.pop_front().unwrap())?.to_string(),
+                    cmd_str.pop_front().unwrap(),
+                    u64::from_le_bytes(cmd_str.pop_front().unwrap().try_into().unwrap()))),
                 _s => Err(Error::new(ErrorKind::Unsupported, format!("unsupported command: {}", _s)).into()),
             }
         } else {

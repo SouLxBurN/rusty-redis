@@ -61,7 +61,7 @@ impl RedisServer {
                                 match the_cmd {
                                     Command::GET(key) => execute_get(&mut conn, data_store.clone(), &key).await,
                                     Command::KEYS => execute_keys(&mut conn, data_store.clone()).await,
-                                    Command::SET(key, value) => execute_set(&mut conn, data_store.clone(), &key, value).await,
+                                    Command::SET(key, value, ttl) => execute_set(&mut conn, data_store.clone(), &key, value, ttl).await,
                                     Command::DELETE(key) => execute_delete(&mut conn, data_store.clone(), &key).await,
                                 };
                             },
@@ -107,12 +107,12 @@ async fn execute_get<T>(conn: &mut RedisConnection<T>, data_store: Arc<RwLock<Da
     }
 }
 
-async fn execute_set<T>(conn: &mut RedisConnection<T>, data_store: Arc<RwLock<DataStore>>, key: &str, value: Vec<u8>)
+async fn execute_set<T>(conn: &mut RedisConnection<T>, data_store: Arc<RwLock<DataStore>>, key: &str, value: Vec<u8>, ttl: u64)
     where T: AsyncReadExt + AsyncWriteExt + Unpin
 {
     println!("SET {key}: {}", String::from_utf8(value.to_vec()).unwrap());
     let mut store_rw = data_store.write().await;
-    store_rw.insert(key, value);
+    store_rw.insert(key, value, ttl);
     if let Err(e) = conn.write_response(Response::String(String::from("Hi Client! I'm Dad!"))).await {
         eprintln!("Failed to write message {}", e);
     }
