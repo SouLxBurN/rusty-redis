@@ -9,9 +9,9 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 use tokio::time::sleep;
-use crate::command::Command;
-use crate::response::Response;
-use crate::RedisConnection;
+use rusty_redis_core::command::Command;
+use rusty_redis_core::response::Response;
+use crate::connection::RedisServerConnection;
 
 use self::store::DataStore;
 
@@ -52,7 +52,7 @@ impl RedisServer {
             let (stream, _addr) = listener.accept().await.expect("Failed to accept connection");
             println!("Receiving Incoming Transmission");
             let data_store = self.store.clone();
-            let mut conn = RedisConnection::new(stream);
+            let mut conn = RedisServerConnection::new(stream);
             tokio::spawn(async move {
                 loop {
                     if let Ok(cmd) = conn.read_command().await {
@@ -77,7 +77,7 @@ impl RedisServer {
     }
 }
 
-async fn execute_keys<T>(conn: &mut RedisConnection<T>, data_store: Arc<RwLock<DataStore>>)
+async fn execute_keys<T>(conn: &mut RedisServerConnection<T>, data_store: Arc<RwLock<DataStore>>)
     where T: AsyncReadExt + AsyncWriteExt + Unpin
 {
     println!("KEYS");
@@ -89,7 +89,7 @@ async fn execute_keys<T>(conn: &mut RedisConnection<T>, data_store: Arc<RwLock<D
     }
 }
 
-async fn execute_get<T>(conn: &mut RedisConnection<T>, data_store: Arc<RwLock<DataStore>>, key: &str)
+async fn execute_get<T>(conn: &mut RedisServerConnection<T>, data_store: Arc<RwLock<DataStore>>, key: &str)
     where T: AsyncReadExt + AsyncWriteExt + Unpin
 {
     println!("GET {key}");
@@ -107,7 +107,7 @@ async fn execute_get<T>(conn: &mut RedisConnection<T>, data_store: Arc<RwLock<Da
     }
 }
 
-async fn execute_set<T>(conn: &mut RedisConnection<T>, data_store: Arc<RwLock<DataStore>>, key: &str, value: Vec<u8>, ttl: u64)
+async fn execute_set<T>(conn: &mut RedisServerConnection<T>, data_store: Arc<RwLock<DataStore>>, key: &str, value: Vec<u8>, ttl: u64)
     where T: AsyncReadExt + AsyncWriteExt + Unpin
 {
     println!("SET {key}: {}", String::from_utf8(value.to_vec()).unwrap());
@@ -118,7 +118,7 @@ async fn execute_set<T>(conn: &mut RedisConnection<T>, data_store: Arc<RwLock<Da
     }
 }
 
-async fn execute_delete<T>(conn: &mut RedisConnection<T>, cache: Arc<RwLock<DataStore>>, key: &str)
+async fn execute_delete<T>(conn: &mut RedisServerConnection<T>, cache: Arc<RwLock<DataStore>>, key: &str)
     where T: AsyncReadExt + AsyncWriteExt + Unpin
 {
     println!("DEL {key}");

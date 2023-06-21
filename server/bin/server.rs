@@ -1,4 +1,4 @@
-use rusty_redis::server::RedisServer;
+use rusty_redis::RedisServer;
 
 #[tokio::main]
 async fn main() {

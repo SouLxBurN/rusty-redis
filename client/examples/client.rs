@@ -1,9 +1,8 @@
-use rusty_redis::response::Response;
-use rusty_redis::client;
+use rusty_redis_client::Response;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    if let Ok(mut conn) = client::connect("localhost:8080").await {
+    if let Ok(mut conn) = rusty_redis_client::connect("localhost:8080").await {
         println!("Connection Established");
 
         let response = conn.set("1234".to_string(), b"{\"hello\":\"stream 1234!\"}".to_vec(), 10000).await?;
@@ -60,3 +59,4 @@ fn print_response(response: Response) -> Result<(), anyhow::Error> {
     };
     Ok(())
 }
+

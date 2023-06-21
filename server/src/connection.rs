@@ -1,13 +1,28 @@
 use std::collections::VecDeque;
 use std::io::ErrorKind;
-use std::sync::Arc;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt, self};
 
-use crate::response::Response;
-use crate::{RedisConnection, BUF_MAX};
+use rusty_redis_core::response::Response;
+use rusty_redis_core::BUF_MAX;
 
-impl<T> RedisConnection<T>
+pub struct RedisServerConnection<T>
+where
+    T: AsyncReadExt + AsyncWriteExt + Unpin,
+{
+    stream: T,
+}
+
+impl<T> RedisServerConnection<T>
+where
+    T: AsyncReadExt + AsyncWriteExt + Unpin,
+{
+    pub fn new(stream: T) -> Self {
+        RedisServerConnection { stream }
+    }
+}
+
+impl<T> RedisServerConnection<T>
 where
     T: AsyncReadExt + AsyncWriteExt + Unpin,
 {
@@ -38,23 +53,15 @@ where
         self.stream.write_all(&response.serialize()).await?;
         Ok(())
     }
-
-    pub async fn write_message(&mut self, buffer: Arc<&[u8]>) -> io::Result<()> {
-        let msg_len = buffer.len() as u32;
-        self.stream.write_all(&msg_len.to_le_bytes()).await?;
-        self.stream.write_all(&buffer[0..buffer.len()]).await?;
-        Ok(())
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::collections::VecDeque;
-
-    use crate::command::Command;
-
+    use rusty_redis_core::command::Command;
     use super::*;
     use tokio_test::io::Builder;
+
     #[tokio::test]
     async fn test_read_command() {
         let mut builder = Builder::new();
@@ -69,7 +76,7 @@ mod tests {
             ]);
         handle.read(Command::SET("1234".to_string(), b"Hello Stream!".to_vec(), 5000u64).encode().as_slice());
 
-        let mut conn = RedisConnection::new(mock);
+        let mut conn = RedisServerConnection::new(mock);
         let actual = conn.read_command().await.expect("Failed to read commands");
 
         assert_eq!(expected, actual);

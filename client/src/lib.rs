@@ -3,22 +3,38 @@ use std::{str, io};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-use crate::command::Command;
-use crate::response::Response;
-use crate::{RedisConnection, BUF_MAX};
+pub use rusty_redis_core::command::Command;
+pub use rusty_redis_core::response::Response;
+use rusty_redis_core::BUF_MAX;
 
-pub async fn connect(url: &str) -> Result<RedisConnection<TcpStream>, io::Error> {
-    RedisConnection::connect(url).await
+pub struct RedisClientConnection<T>
+where
+    T: AsyncReadExt + AsyncWriteExt + Unpin,
+{
+    stream: T,
 }
 
-impl RedisConnection<TcpStream> {
-    async fn connect(url: &str) -> Result<Self, Error> {
-        let stream = TcpStream::connect(url).await?;
-        Ok(RedisConnection{stream})
+impl<T> RedisClientConnection<T>
+where
+    T: AsyncReadExt + AsyncWriteExt + Unpin,
+{
+    fn new(stream: T) -> Self {
+        RedisClientConnection { stream }
     }
 }
 
-impl<T> RedisConnection<T>
+pub async fn connect(url: &str) -> Result<RedisClientConnection<TcpStream>, io::Error> {
+    RedisClientConnection::connect(url).await
+}
+
+impl RedisClientConnection<TcpStream> {
+    async fn connect(url: &str) -> Result<Self, Error> {
+        let stream = TcpStream::connect(url).await?;
+        Ok(RedisClientConnection{stream})
+    }
+}
+
+impl<T> RedisClientConnection<T>
 where
     T: AsyncReadExt + AsyncWriteExt + Unpin,
 {
@@ -78,7 +94,7 @@ mod tests {
         response.append(&mut expected_message.as_bytes().to_vec());
         handle.read(response.as_slice());
 
-        let mut conn = RedisConnection::new(mock);
+        let mut conn = RedisClientConnection::new(mock);
         let n = conn
             .read_response()
             .await

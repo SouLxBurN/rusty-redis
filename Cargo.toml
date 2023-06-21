@@ -1,13 +1,8 @@
-[package]
-name = "rusty-redis"
-version = "0.1.0"
-edition = "2021"
+[workspace]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+members = [
+    "core",
+    "client",
+    "server"
+]
 
-[dependencies]
-anyhow = "1.0.68"
-tokio = { version = "1.25.0", features = ["full"] }
-
-[dev-dependencies]
-tokio-test = "0.4.2"
