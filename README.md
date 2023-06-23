@@ -1,6 +1,6 @@
 # Rusty Redis Project
 
-Initiall Followed https://build-your-own.org/redis and attempted to build my own redis in Rust instead of C.
+Initially Followed https://build-your-own.org/redis and attempted to build my own redis in Rust instead of C.
 
 ## Structure
 
