@@ -5,7 +5,7 @@ edition = "2021"
 
 [[bin]]
 name = "client"
-path = "bin/client.rs"
+path = "examples/client.rs"
 
 [dependencies]
 rusty-redis-core = { path = "../core" }

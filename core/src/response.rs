@@ -9,7 +9,7 @@ pub enum Response {
     Int(i32), // 3
     Float(f32), // 4
     Array(Arc<Vec<String>>), // 5
-    Data(Arc<Vec<u8>>), // 6
+    Data(Vec<u8>), // 6
 }
 
 impl Response {
@@ -55,8 +55,8 @@ impl Response {
             6 => { // Response::Data
                 let len_buf: &[u8; 4] = &buffer[4..8].try_into()?;
                 let msg_size = u32::from_le_bytes(*len_buf) as usize;
-                let data = &buffer[8..msg_size+8+4];
-                Ok(Response::Data(Arc::new(data.to_vec())))
+                let data = &buffer[8..msg_size+8];
+                Ok(Response::Data(data.to_vec()))
             },
             _ => Err(anyhow!(String::from("Unrecognized Response Code")))
         }

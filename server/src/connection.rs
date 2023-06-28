@@ -36,10 +36,13 @@ where
         let len_buf: &[u8; 4] = &buffer[0..4].try_into().unwrap();
         let cmd_len = u32::from_le_bytes(*len_buf) as usize;
 
+        // [NumV][LNV][V][LNV][V][LNV][V]
+        // [cmd_len][str_len][st][str_len][st][str_len][st]
         let mut strs = VecDeque::new();
         let mut remaining = &buffer[4..];
         for _ in 0..cmd_len {
             let str_len = u32::from_le_bytes(remaining[0..4].try_into().unwrap()) as usize;
+            // TODO Can we use slices instead of allocating a new vec for each command?
             let st = remaining[4..str_len + 4].to_vec();
             strs.push_back(st);
             remaining = &remaining[str_len + 4..]

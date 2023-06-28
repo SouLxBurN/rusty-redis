@@ -95,7 +95,8 @@ async fn execute_get<T>(conn: &mut RedisServerConnection<T>, data_store: Arc<RwL
     println!("GET {key}");
     let store_read = data_store.read().await;
     if let Some(data) = store_read.get(key) {
-        let response = Response::Data(data.clone());
+        // This seems dirty. But it copies it!
+        let response = Response::Data(data.to_vec());
         if let Err(e) = conn.write_response(response).await {
             eprintln!("Failed to write response {}", e);
         }

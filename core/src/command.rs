@@ -14,11 +14,13 @@ impl Command {
         let mut command: Vec<u8> = vec![];
         match self {
             Command::KEYS => {
+                // [NumV][LNV][V]
                 command.extend_from_slice(&1u32.to_le_bytes());
                 command.extend_from_slice(&4u32.to_le_bytes());
                 command.extend_from_slice(b"keys");
             },
             Command::GET(key) => {
+                // [NumV][LNV][V][LNV][V]
                 command.extend_from_slice(&2u32.to_le_bytes());
                 command.extend_from_slice(&3u32.to_le_bytes());
                 command.extend_from_slice(b"get");
@@ -26,6 +28,7 @@ impl Command {
                 command.extend_from_slice(key.as_bytes());
             },
             Command::SET(key, value, ttl) => {
+                // [NumV][LNV][V][LNV][V][LNV][V]
                 command.extend_from_slice(&4u32.to_le_bytes());
                 command.extend_from_slice(&3u32.to_le_bytes());
                 command.extend_from_slice(b"set");
@@ -37,6 +40,7 @@ impl Command {
                 command.extend_from_slice(&ttl.to_le_bytes());
             },
             Command::DELETE(key) => {
+                // [NumV][LNV][V][LNV][V]
                 command.extend_from_slice(&2u32.to_le_bytes());
                 command.extend_from_slice(&3u32.to_le_bytes());
                 command.extend_from_slice(b"del");
