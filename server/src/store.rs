@@ -70,8 +70,9 @@ impl DataStore {
     }
 
     pub fn delete(&mut self, key: &str) {
-        let ttl = self.cache_ttls.remove(key).unwrap();
-        self.ttls.remove(&ttl);
+        if let Some(ttl) = self.cache_ttls.remove(key) {
+            self.ttls.remove(&ttl);
+        }
         self.cache.delete(key);
         println!("Delete: cache_ttls:{}, ttls:{}, cache:{}", self.cache_ttls.len(), self.ttls.len(), self.cache.len());
     }

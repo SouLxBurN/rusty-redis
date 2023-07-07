@@ -51,18 +51,30 @@ impl Command {
     command
     }
 
-    // TODO: Clean up the unwraps, and handle bad command data gracefully.
-    pub fn parse(mut cmd_str: VecDeque<Vec<u8>>) -> Result<Self, anyhow::Error> {
+    pub fn parse(mut cmd_str: VecDeque<Vec<u8>>) -> anyhow::Result<Self> {
         let cmd = cmd_str.pop_front();
         if let Some(cmd) = cmd {
             match String::from_utf8(cmd.to_vec())?.as_str() {
-                "get" => Ok(Command::GET(String::from_utf8(cmd_str.pop_front().unwrap())?.to_string())),
                 "keys" => Ok(Command::KEYS),
-                "del" => Ok(Command::DELETE(String::from_utf8(cmd_str.pop_front().unwrap())?.to_string())),
-                "set" => Ok(Command::SET(
-                    String::from_utf8(cmd_str.pop_front().unwrap())?.to_string(),
-                    cmd_str.pop_front().unwrap(),
-                    u64::from_le_bytes(cmd_str.pop_front().unwrap().try_into().unwrap()))),
+                "get" => {
+                    let key_bytes = cmd_str.pop_front().ok_or(Error::new(ErrorKind::UnexpectedEof, "Expected cache key after get"))?;
+                    Ok(Command::GET(String::from_utf8(key_bytes)?.to_string()))
+                }
+                "del" => {
+                    let key_bytes = cmd_str.pop_front().ok_or(Error::new(ErrorKind::UnexpectedEof, "Expected cache key after del"))?;
+                    Ok(Command::DELETE(String::from_utf8(key_bytes)?.to_string()))
+                },
+                "set" => {
+                    let key_bytes = cmd_str.pop_front()
+                        .ok_or(Error::new(ErrorKind::UnexpectedEof, "Expected cache key after set"))?;
+                    let value_bytes = cmd_str.pop_front()
+                        .ok_or(Error::new(ErrorKind::UnexpectedEof, "Expected byte value after cache key"))?;
+                    let ttl_bytes = cmd_str.pop_front()
+                        .ok_or(Error::new(ErrorKind::UnexpectedEof, "Expected ttl after byte value"))?;
+                    let ttl = u64::from_le_bytes(ttl_bytes.try_into()
+                        .map_err(|_| Error::new(ErrorKind::InvalidData, "Invalid TTL value encountered"))?);
+                    Ok(Command::SET(String::from_utf8(key_bytes)?.to_string(), value_bytes, ttl))
+                }
                 _s => Err(Error::new(ErrorKind::Unsupported, format!("unsupported command: {}", _s)).into()),
             }
         } else {
